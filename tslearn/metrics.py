@@ -3,6 +3,7 @@ The :mod:`tslearn.metrics` module gathers time series similarity metrics.
 """
 
 import numpy
+import dtaidistance.dtw as dtai
 from scipy.spatial.distance import pdist
 from sklearn.utils import check_random_state
 from tslearn.soft_dtw_fast import _soft_dtw, _soft_dtw_grad, _jacobian_product_sq_euc
@@ -15,6 +16,7 @@ from tslearn.cydtw import sakoe_chiba_mask as cysakoe_chiba_mask, itakura_mask a
 from tslearn.cygak import cdist_gak as cycdist_gak, cdist_normalized_gak as cycdist_normalized_gak, \
     normalized_gak as cynormalized_gak, gak as cygak
 from tslearn.utils import to_time_series, to_time_series_dataset, ts_size, check_equal_size
+from dtaidistance.dtw import distance_matrix_fast
 
 __author__ = 'Romain Tavenard romain.tavenard[at]univ-rennes2.fr'
 
@@ -132,7 +134,6 @@ def dtw(s1, s2, global_constraint=None, sakoe_chiba_radius=1):
     elif global_constraint == "itakura":
         return cydtw(s1, s2, mask=itakura_mask(sz1, sz2))
     return cydtw(s1, s2, mask=numpy.zeros((sz1, sz2)))
-
 
 def dtw_subsequence_path(subseq, longseq):
     """Compute sub-sequence Dynamic Time Warping (DTW) similarity measure between a (possibly multidimensional)
@@ -270,6 +271,56 @@ def cdist_dtw(dataset1, dataset2=None, global_constraint=None, sakoe_chiba_radiu
         return cycdist_dtw(dataset1, dataset2, self_similarity=self_similarity, mask=itakura_mask(sz1, sz2))
     return cycdist_dtw(dataset1, dataset2, self_similarity=self_similarity, mask=numpy.zeros((sz1, sz2)))
 
+def cdist_fastdtw(dataset1, dataset2=None):
+    """Compute cross-similarity matrix using Dynamic Time Warping (DTW) similarity measure.
+
+    DTW is computed as the Euclidean distance between aligned time series, i.e., if :math:`P` is the alignment path:
+    $$DTW(X, Y) = \\\sqrt{\\\sum_{(i, j) \\\in P} (X_{i} - Y_{j})^2}$$
+
+    DTW was originally presented in [1]_.
+
+    Relied on the library dtaidistance which provide a faster implement of the dtw distance computation.
+
+    Parameters
+    ----------
+    dataset1 : array-like
+        A dataset of time series
+    dataset2 : array-like (default: None)
+        Another dataset of time series. If `None`, self-similarity of `dataset1` is returned.
+    global_constraint : {"itakura", "sakoe_chiba"} or None (default: None)
+        Global constraint to restrict admissible paths for DTW.
+    sakoe_chiba_radius : int (default: 1)
+        Radius to be used for Sakoe-Chiba band global constraint. Used only if global_constraint is "sakoe_chiba".
+
+    Returns
+    -------
+    numpy.ndarray
+        Cross-similarity matrix
+
+    Examples
+    --------
+    >>> cdist_fastdtw([[1, 2, 2, 3], [1., 2., 3., 4.]])  # doctest: +NORMALIZE_WHITESPACE
+    array([[ 0., 1.],
+           [ 1., 0.]])
+    >>> cdist_fastdtw([[1, 2, 2, 3], [1., 2., 3., 4.]], [[1, 2, 3], [2, 3, 4, 5]])  # doctest: +NORMALIZE_WHITESPACE +ELLIPSIS
+    array([[ 0. ,  2.449...],
+           [ 1. ,  1.414...]])
+
+    See Also
+    --------
+    dtw : Get DTW similarity score
+
+    References
+    ----------
+    .. [1] H. Sakoe, S. Chiba, "Dynamic programming algorithm optimization for spoken word recognition,"
+       IEEE Transactions on Acoustics, Speech and Signal Processing, vol. 26(1), pp. 43--49, 1978.
+    """
+    tmp_dataset1 = dataset1.reshape((dataset1.shape[0],dataset1.shape[1]))
+    if dataset2 is None:
+        tmp_dataset2 = tmp_dataset1
+    else:
+        tmp_dataset2 = dataset2.reshape((dataset2.shape[0],dataset2.shape[1]))
+    return numpy.array([distance_matrix_fast(numpy.vstack((el,tmp_dataset2)))[0][1:] for el in tmp_dataset1])
 
 def gak(s1, s2, sigma=1.):
     """Compute Global Alignment Kernel (GAK) between (possibly multidimensional) time series and return it.
