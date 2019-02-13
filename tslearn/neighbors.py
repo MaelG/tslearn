@@ -8,7 +8,7 @@ from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors
 from sklearn.neighbors.base import KNeighborsMixin
 from scipy.spatial.distance import cdist as scipy_cdist
 
-from tslearn.metrics import cdist_dtw
+from tslearn.metrics import cdist_dtw,cdist_fastdtw
 from tslearn.utils import to_time_series_dataset, to_sklearn_dataset
 
 
@@ -55,6 +55,8 @@ class KNeighborsTimeSeriesMixin(KNeighborsMixin):
             self_neighbors = True
         if self.metric == "dtw" or self.metric == cdist_dtw:
             cdist_fun = cdist_dtw
+        elif self.metric == 'fastdtw':
+            cdist_fun = cdist_fastdtw
         elif self.metric in ["euclidean", "sqeuclidean", "cityblock"]:
             cdist_fun = lambda X, Xp: scipy_cdist(X.reshape((X.shape[0], -1)),
                                                   Xp.reshape((Xp.shape[0], -1)),
